@@ -9,6 +9,7 @@ import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -18,6 +19,8 @@ import java.util.List;
 public class PhotoGalleryFragment extends Fragment {
 
     private static final String TAG = "PhotoGalleryFragment";
+
+    private final int COLUMN_WIDTH = 200;
 
     private RecyclerView mPhotoRecyclerView;
     private List<GalleryItem> mItems = new ArrayList<>();
@@ -53,11 +56,20 @@ public class PhotoGalleryFragment extends Fragment {
                 int notVisiblePastItemsCount = gridLayoutManager.findFirstVisibleItemPosition();
                 int totalItemsCount = gridLayoutManager.getItemCount();
                 if ((visibleItemsCount + notVisiblePastItemsCount) >= totalItemsCount) {
-                    Toast.makeText(getActivity(), "Scroll finished", Toast.LENGTH_SHORT).show();
                     if ((currentPage < totalPages) && (!isLoadingData)) {
+                        Toast.makeText(getActivity(), R.string.loading_next_page_message, Toast.LENGTH_SHORT).show();
                         new FetchItemsTask().execute(currentPage + 1);
                     }
                 }
+            }
+        });
+
+        mPhotoRecyclerView.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override
+            public void onGlobalLayout() {
+                mPhotoRecyclerView.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                int columnsCount = mPhotoRecyclerView.getWidth() / COLUMN_WIDTH;
+                gridLayoutManager.setSpanCount(columnsCount);
             }
         });
 
