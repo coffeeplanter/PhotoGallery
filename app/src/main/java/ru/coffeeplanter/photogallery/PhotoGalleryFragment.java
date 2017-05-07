@@ -10,6 +10,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,6 +21,11 @@ public class PhotoGalleryFragment extends Fragment {
 
     private RecyclerView mPhotoRecyclerView;
     private List<GalleryItem> mItems = new ArrayList<>();
+    private PhotoAdapter mAdapter = new PhotoAdapter(mItems);
+    private int totalPages = 1;
+    private int currentPage = 1;
+    private int itemsPerPage = 100;
+    private boolean isLoadingData = false;
 
     public static PhotoGalleryFragment newInstance() {
         return new PhotoGalleryFragment();
@@ -29,7 +35,7 @@ public class PhotoGalleryFragment extends Fragment {
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setRetainInstance(true);
-        new FetchItemsTask().execute();
+        new FetchItemsTask().execute(currentPage);
     }
 
     @Nullable
@@ -37,14 +43,35 @@ public class PhotoGalleryFragment extends Fragment {
     public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View v = inflater.inflate(R.layout.fragment_photo_gallery, container, false);
         mPhotoRecyclerView = (RecyclerView) v.findViewById(R.id.photo_recycler_view);
-        mPhotoRecyclerView.setLayoutManager(new GridLayoutManager(getActivity(), 3));
+        final GridLayoutManager gridLayoutManager = new GridLayoutManager(getActivity(), 3);
+        mPhotoRecyclerView.setLayoutManager(gridLayoutManager);
+        mPhotoRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
+                super.onScrolled(recyclerView, dx, dy);
+                int visibleItemsCount = gridLayoutManager.getChildCount();
+                int notVisiblePastItemsCount = gridLayoutManager.findFirstVisibleItemPosition();
+                int totalItemsCount = gridLayoutManager.getItemCount();
+                if ((visibleItemsCount + notVisiblePastItemsCount) >= totalItemsCount) {
+                    Toast.makeText(getActivity(), "Scroll finished", Toast.LENGTH_SHORT).show();
+                    if ((currentPage < totalPages) && (!isLoadingData)) {
+                        new FetchItemsTask().execute(currentPage + 1);
+                    }
+                }
+            }
+        });
+
         setupAdapter();
         return v;
     }
 
     private void setupAdapter() {
         if (isAdded()) {
-            mPhotoRecyclerView.setAdapter(new PhotoAdapter(mItems));
+            if (mPhotoRecyclerView.getAdapter() != null) {
+                mAdapter.notifyItemRangeInserted(currentPage * itemsPerPage, itemsPerPage);
+            } else {
+                mPhotoRecyclerView.setAdapter(mAdapter);
+            }
         }
     }
 
@@ -80,21 +107,37 @@ public class PhotoGalleryFragment extends Fragment {
         }
     }
 
-    private class FetchItemsTask extends AsyncTask<Void, Void, List<GalleryItem>> {
+    private class FetchItemsTask extends AsyncTask<Integer, Void, List<GalleryItem>> {
+        int[] photoListParameters;
+
         @Override
-        protected List<GalleryItem> doInBackground(Void... params) {
+        protected void onPreExecute() {
+            isLoadingData = true;
+        }
+
+        @Override
+        protected List<GalleryItem> doInBackground(Integer... params) {
 //            try {
 //                String result = new FlickrFetchr().getUrlString("https://www.bignerdranch.com");
 //                Log.i(TAG, "Fetched contents of URL: " + result);
 //            } catch (IOException ioe) {
 //                Log.e(TAG, "Failed to fetch URL: ", ioe);
 //            }
-            return new FlickrFetchr().fetchItems();
+            FlickrFetchr flickFetchr = new FlickrFetchr();
+            List<GalleryItem> galleryItemsList = flickFetchr.fetchItems(params[0]);
+            photoListParameters =  flickFetchr.parsePhotoListParameters();
+            return galleryItemsList;
         }
         @Override
         protected void onPostExecute(List<GalleryItem> items) {
-            mItems = items;
+            mItems.addAll(items);
             setupAdapter();
+            if (photoListParameters != null) {
+                totalPages = photoListParameters[0];
+                currentPage = photoListParameters[1];
+                itemsPerPage = photoListParameters[2];
+            }
+            isLoadingData = false;
         }
     }
 
