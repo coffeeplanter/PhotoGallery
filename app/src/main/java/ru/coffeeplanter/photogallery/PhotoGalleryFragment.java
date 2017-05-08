@@ -89,7 +89,7 @@ public class PhotoGalleryFragment extends Fragment {
                         if (mItems.size() - lastVisibleItemPosition + 1 > PRELOADED_BITMAPS_COUNT / 2) {
                             forwardNumberToPreload = PRELOADED_BITMAPS_COUNT / 2;
                         } else {
-                            forwardNumberToPreload = mItems.size() - lastVisibleItemPosition + 1;
+                            forwardNumberToPreload = mItems.size() - lastVisibleItemPosition;
                         }
                         try {
                             mThumbnailDownloader.loadCache(
