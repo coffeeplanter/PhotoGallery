@@ -186,27 +186,7 @@ public class PhotoGalleryFragment extends Fragment {
             Drawable placeHolder = ContextCompat.getDrawable(getActivity(), R.drawable.bill_up_close);
             holder.bindDrawable(placeHolder);
             mThumbnailDownloader.queueThumbnail(holder, galleryItem.getUrl());
-//            queueThumbnails(holder, position);
         }
-//        private void queueThumbnails(PhotoHolder holder, int position) {
-//            int previousNumberToPreload;
-//            if (position > PRELOADED_BITMAPS_COUNT / 2) {
-//                previousNumberToPreload = PRELOADED_BITMAPS_COUNT / 2;
-//            } else {
-//                previousNumberToPreload = position;
-//            }
-//            int pastNumberToPreload;
-//            if (mGalleryItems.size() - position + 1 > PRELOADED_BITMAPS_COUNT / 2) {
-//                pastNumberToPreload = PRELOADED_BITMAPS_COUNT / 2;
-//            } else {
-//                pastNumberToPreload = mGalleryItems.size() - position + 1;
-//            }
-//            List<GalleryItem> itemsToPreload =
-//                    mGalleryItems.subList(position - previousNumberToPreload, position + pastNumberToPreload);
-//            for (GalleryItem item : itemsToPreload) {
-//                mThumbnailDownloader.queueThumbnail(holder, item.getUrl());
-//            }
-//        }
         @Override
         public int getItemCount() {
             return mGalleryItems.size();
@@ -223,12 +203,6 @@ public class PhotoGalleryFragment extends Fragment {
 
         @Override
         protected List<GalleryItem> doInBackground(Integer... params) {
-//            try {
-//                String result = new FlickrFetchr().getUrlString("https://www.bignerdranch.com");
-//                Log.i(TAG, "Fetched contents of URL: " + result);
-//            } catch (IOException ioe) {
-//                Log.e(TAG, "Failed to fetch URL: ", ioe);
-//            }
             FlickrFetchr flickFetchr = new FlickrFetchr();
             List<GalleryItem> galleryItemsList = flickFetchr.fetchItems(params[0]);
             photoListParameters =  flickFetchr.parsePhotoListParameters();
