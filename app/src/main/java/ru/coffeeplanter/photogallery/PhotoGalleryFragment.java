@@ -27,6 +27,7 @@ public class PhotoGalleryFragment extends Fragment {
     private static final String TAG = "PhotoGalleryFragment";
 
     private final int COLUMN_WIDTH = 200;
+    private final int PRELOADED_BITMAPS_COUNT = 20;
 
     private RecyclerView mPhotoRecyclerView;
     private List<GalleryItem> mItems = new ArrayList<>();
@@ -70,6 +71,42 @@ public class PhotoGalleryFragment extends Fragment {
         mPhotoRecyclerView.setLayoutManager(gridLayoutManager);
         mPhotoRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
+            public void onScrollStateChanged(RecyclerView recyclerView, int newState) {
+                switch (newState) {
+                    case RecyclerView.SCROLL_STATE_DRAGGING:
+                        mThumbnailDownloader.clearPreloadQueue();
+                        break;
+                    case RecyclerView.SCROLL_STATE_IDLE:
+                        int firstVisibleItemPosition = gridLayoutManager.findFirstVisibleItemPosition();
+                        int lastVisibleItemPosition = gridLayoutManager.findLastVisibleItemPosition();
+                        int previousNumberToPreload;
+                        if (firstVisibleItemPosition > PRELOADED_BITMAPS_COUNT / 2) {
+                            previousNumberToPreload = PRELOADED_BITMAPS_COUNT / 2;
+                        } else {
+                            previousNumberToPreload = firstVisibleItemPosition;
+                        }
+                        int forwardNumberToPreload;
+                        if (mItems.size() - lastVisibleItemPosition + 1 > PRELOADED_BITMAPS_COUNT / 2) {
+                            forwardNumberToPreload = PRELOADED_BITMAPS_COUNT / 2;
+                        } else {
+                            forwardNumberToPreload = mItems.size() - lastVisibleItemPosition + 1;
+                        }
+                        try {
+                            mThumbnailDownloader.loadCache(
+                                    mItems.subList(
+                                            firstVisibleItemPosition - previousNumberToPreload,
+                                            lastVisibleItemPosition + forwardNumberToPreload
+                                    )
+                            );
+                        } catch (IndexOutOfBoundsException iobe) {
+                            Log.e(TAG, String.format("Error getting sublist of GalleryItem objects: %s",
+                                    iobe.getLocalizedMessage()), iobe);
+                            return;
+                        }
+                        break;
+                }
+            }
+            @Override
             public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
                 super.onScrolled(recyclerView, dx, dy);
                 int visibleItemsCount = gridLayoutManager.getChildCount();
@@ -100,6 +137,7 @@ public class PhotoGalleryFragment extends Fragment {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        mThumbnailDownloader.clearPreloadQueue();
         mThumbnailDownloader.clearQueue();
     }
 
@@ -148,7 +186,27 @@ public class PhotoGalleryFragment extends Fragment {
             Drawable placeHolder = ContextCompat.getDrawable(getActivity(), R.drawable.bill_up_close);
             holder.bindDrawable(placeHolder);
             mThumbnailDownloader.queueThumbnail(holder, galleryItem.getUrl());
+//            queueThumbnails(holder, position);
         }
+//        private void queueThumbnails(PhotoHolder holder, int position) {
+//            int previousNumberToPreload;
+//            if (position > PRELOADED_BITMAPS_COUNT / 2) {
+//                previousNumberToPreload = PRELOADED_BITMAPS_COUNT / 2;
+//            } else {
+//                previousNumberToPreload = position;
+//            }
+//            int pastNumberToPreload;
+//            if (mGalleryItems.size() - position + 1 > PRELOADED_BITMAPS_COUNT / 2) {
+//                pastNumberToPreload = PRELOADED_BITMAPS_COUNT / 2;
+//            } else {
+//                pastNumberToPreload = mGalleryItems.size() - position + 1;
+//            }
+//            List<GalleryItem> itemsToPreload =
+//                    mGalleryItems.subList(position - previousNumberToPreload, position + pastNumberToPreload);
+//            for (GalleryItem item : itemsToPreload) {
+//                mThumbnailDownloader.queueThumbnail(holder, item.getUrl());
+//            }
+//        }
         @Override
         public int getItemCount() {
             return mGalleryItems.size();
