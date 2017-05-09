@@ -10,6 +10,7 @@ import android.os.Handler;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.ContextCompat;
+import android.support.v4.widget.ContentLoadingProgressBar;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.SearchView;
@@ -35,6 +36,7 @@ public class PhotoGalleryFragment extends Fragment {
     private final int COLUMN_WIDTH = 200;
     private final int PRELOADED_BITMAPS_COUNT = 20;
 
+    private ContentLoadingProgressBar mProgressBar;
     private RecyclerView mPhotoRecyclerView;
     private List<GalleryItem> mItems = new ArrayList<>();
     private PhotoAdapter mAdapter = new PhotoAdapter(mItems);
@@ -73,6 +75,7 @@ public class PhotoGalleryFragment extends Fragment {
     @Override
     public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View v = inflater.inflate(R.layout.fragment_photo_gallery, container, false);
+        mProgressBar = (ContentLoadingProgressBar) v.findViewById(R.id.waiting_progress_bar);
         mPhotoRecyclerView = (RecyclerView) v.findViewById(R.id.photo_recycler_view);
         final GridLayoutManager gridLayoutManager = new GridLayoutManager(getActivity(), 3);
         mPhotoRecyclerView.setLayoutManager(gridLayoutManager);
@@ -84,32 +87,7 @@ public class PhotoGalleryFragment extends Fragment {
                         mThumbnailDownloader.clearPreloadQueue();
                         break;
                     case RecyclerView.SCROLL_STATE_IDLE:
-                        int firstVisibleItemPosition = gridLayoutManager.findFirstVisibleItemPosition();
-                        int lastVisibleItemPosition = gridLayoutManager.findLastVisibleItemPosition();
-                        int previousNumberToPreload;
-                        if (firstVisibleItemPosition > PRELOADED_BITMAPS_COUNT / 2) {
-                            previousNumberToPreload = PRELOADED_BITMAPS_COUNT / 2;
-                        } else {
-                            previousNumberToPreload = firstVisibleItemPosition;
-                        }
-                        int forwardNumberToPreload;
-                        if (mItems.size() - lastVisibleItemPosition + 1 > PRELOADED_BITMAPS_COUNT / 2) {
-                            forwardNumberToPreload = PRELOADED_BITMAPS_COUNT / 2;
-                        } else {
-                            forwardNumberToPreload = mItems.size() - lastVisibleItemPosition;
-                        }
-                        try {
-                            mThumbnailDownloader.loadCache(
-                                    mItems.subList(
-                                            firstVisibleItemPosition - previousNumberToPreload,
-                                            lastVisibleItemPosition + forwardNumberToPreload
-                                    )
-                            );
-                        } catch (IndexOutOfBoundsException iobe) {
-                            Log.e(TAG, String.format("Error getting sublist of GalleryItem objects: %s",
-                                    iobe.getLocalizedMessage()), iobe);
-                            return;
-                        }
+                        preloadImagesToCache(gridLayoutManager);
                         break;
                 }
             }
@@ -121,7 +99,9 @@ public class PhotoGalleryFragment extends Fragment {
                 int totalItemsCount = gridLayoutManager.getItemCount();
                 if ((visibleItemsCount + notVisiblePastItemsCount) >= totalItemsCount) {
                     if ((currentPage < totalPages) && (!isLoadingData)) {
-                        Toast.makeText(getActivity(), R.string.loading_next_page_message, Toast.LENGTH_SHORT).show();
+                        if (currentPage > 1) {
+                            Toast.makeText(getActivity(), R.string.loading_next_page_message, Toast.LENGTH_SHORT).show();
+                        }
                         String query = QueryPreferences.getStoredQuery(getActivity());
                         new FetchItemsTask(query).execute(currentPage + 1);
                     }
@@ -135,6 +115,7 @@ public class PhotoGalleryFragment extends Fragment {
                 mPhotoRecyclerView.getViewTreeObserver().removeOnGlobalLayoutListener(this);
                 int columnsCount = mPhotoRecyclerView.getWidth() / COLUMN_WIDTH;
                 gridLayoutManager.setSpanCount(columnsCount);
+                preloadImagesToCache(gridLayoutManager);
             }
         });
 
@@ -232,12 +213,41 @@ public class PhotoGalleryFragment extends Fragment {
             if (mPhotoRecyclerView.getAdapter() != null) {
                 if (newList) {
                     mAdapter.notifyDataSetChanged();
+                    mPhotoRecyclerView.smoothScrollToPosition(View.SCROLLBAR_POSITION_DEFAULT);
                 } else {
                     mAdapter.notifyItemRangeInserted(currentPage * itemsPerPage, itemsPerPage);
                 }
             } else {
                 mPhotoRecyclerView.setAdapter(mAdapter);
             }
+        }
+    }
+
+    private void preloadImagesToCache(GridLayoutManager gridLayoutManager) {
+        int firstVisibleItemPosition = gridLayoutManager.findFirstVisibleItemPosition();
+        int lastVisibleItemPosition = gridLayoutManager.findLastVisibleItemPosition();
+        int previousNumberToPreload;
+        if (firstVisibleItemPosition > PRELOADED_BITMAPS_COUNT / 2) {
+            previousNumberToPreload = PRELOADED_BITMAPS_COUNT / 2;
+        } else {
+            previousNumberToPreload = firstVisibleItemPosition;
+        }
+        int forwardNumberToPreload;
+        if (mItems.size() - lastVisibleItemPosition + 1 > PRELOADED_BITMAPS_COUNT / 2) {
+            forwardNumberToPreload = PRELOADED_BITMAPS_COUNT / 2;
+        } else {
+            forwardNumberToPreload = mItems.size() - lastVisibleItemPosition;
+        }
+        try {
+            mThumbnailDownloader.loadCache(
+                    mItems.subList(
+                            firstVisibleItemPosition - previousNumberToPreload,
+                            lastVisibleItemPosition + forwardNumberToPreload
+                    )
+            );
+        } catch (IndexOutOfBoundsException iobe) {
+            Log.e(TAG, String.format("Error getting sublist of GalleryItem objects: %s",
+                    iobe.getLocalizedMessage()), iobe);
         }
     }
 
@@ -302,6 +312,10 @@ public class PhotoGalleryFragment extends Fragment {
 
         @Override
         protected void onPreExecute() {
+            if (mItems.isEmpty() && mProgressBar != null && mPhotoRecyclerView != null) {
+                mProgressBar.show();
+                mPhotoRecyclerView.setVisibility(View.GONE);
+            }
             isLoadingData = true;
         }
 
@@ -323,6 +337,8 @@ public class PhotoGalleryFragment extends Fragment {
             boolean newList = false;
             if (mItems.isEmpty()) {
                 newList = true;
+                mPhotoRecyclerView.setVisibility(View.VISIBLE);
+                mProgressBar.hide();
             }
             mItems.addAll(items);
             setupAdapter(newList);
