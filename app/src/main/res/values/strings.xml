@@ -1,5 +1,7 @@
 <resources>
     <string name="app_name">PhotoGallery</string>
-    <string name="loading_next_page_message">Loading next page…</string>
+    <string name="loading_next_page_message">Loading next portion of images…</string>
     <string name="end_of_list_message">You achieved the end of list</string>
+    <string name="search">Search</string>
+    <string name="clear_search">Clear Search</string>
 </resources>

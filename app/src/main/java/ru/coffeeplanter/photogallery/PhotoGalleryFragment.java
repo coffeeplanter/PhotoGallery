@@ -1,5 +1,6 @@
 package ru.coffeeplanter.photogallery;
 
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
@@ -11,11 +12,16 @@ import android.support.v4.app.Fragment;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.support.v7.widget.SearchView;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.ImageView;
 import android.widget.Toast;
 
@@ -46,7 +52,8 @@ public class PhotoGalleryFragment extends Fragment {
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setRetainInstance(true);
-        new FetchItemsTask().execute(currentPage);
+        setHasOptionsMenu(true);
+        updateItems();
         Handler responseHandler = new Handler();
         mThumbnailDownloader = new ThumbnailDownloader<>(responseHandler);
         mThumbnailDownloader.setThumbnailDownloadListener(new ThumbnailDownloader.ThumbnailDownloadListener<PhotoHolder>() {
@@ -115,7 +122,8 @@ public class PhotoGalleryFragment extends Fragment {
                 if ((visibleItemsCount + notVisiblePastItemsCount) >= totalItemsCount) {
                     if ((currentPage < totalPages) && (!isLoadingData)) {
                         Toast.makeText(getActivity(), R.string.loading_next_page_message, Toast.LENGTH_SHORT).show();
-                        new FetchItemsTask().execute(currentPage + 1);
+                        String query = QueryPreferences.getStoredQuery(getActivity());
+                        new FetchItemsTask(query).execute(currentPage + 1);
                     }
                 }
             }
@@ -130,7 +138,7 @@ public class PhotoGalleryFragment extends Fragment {
             }
         });
 
-        setupAdapter();
+        setupAdapter(true);
         return v;
     }
 
@@ -148,12 +156,102 @@ public class PhotoGalleryFragment extends Fragment {
         Log.i(TAG, "Background thread destroyed");
     }
 
-    private void setupAdapter() {
+    @Override
+    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
+        super.onCreateOptionsMenu(menu, inflater);
+        inflater.inflate(R.menu.fragment_photo_gallery, menu);
+
+        MenuItem searchItem = menu.findItem(R.id.menu_item_search);
+        final SearchView searchView = (SearchView) searchItem.getActionView();
+
+        String query = QueryPreferences.getStoredQuery(getActivity());
+        if (query != null) {
+            searchView.setQuery(query, false);
+            searchView.setIconified(false);
+            searchView.clearFocus();
+        }
+
+        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+            @Override
+            public boolean onQueryTextSubmit(String query) {
+                Log.d(TAG, "QueryTextSubmit: " + query);
+                QueryPreferences.setStoredQuery(getActivity(), query);
+                mItems.clear();
+                updateItems();
+                switchKeyboard(false);
+                return true;
+            }
+
+            @Override
+            public boolean onQueryTextChange(String newText) {
+                Log.d(TAG, "QueryTextChange: " + newText);
+                return false;
+            }
+        });
+
+        searchView.setOnCloseListener(new SearchView.OnCloseListener() {
+            @Override
+            public boolean onClose() {
+                QueryPreferences.setStoredQuery(getActivity(), null);
+                mItems.clear();
+                updateItems();
+                return false;
+            }
+        });
+
+//        searchView.setOnSearchClickListener(new View.OnClickListener() {
+//            @Override
+//            public void onClick(View v) {
+//                String query = QueryPreferences.getStoredQuery(getActivity());
+//                searchView.setQuery(query, false);
+//            }
+//        });
+
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.menu_item_clear:
+                QueryPreferences.setStoredQuery(getActivity(), null);
+                mItems.clear();
+                updateItems();
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
+        }
+    }
+
+    private void updateItems() {
+        String query = QueryPreferences.getStoredQuery(getActivity());
+        new FetchItemsTask(query).execute(currentPage);
+    }
+
+    private void setupAdapter(boolean newList) {
         if (isAdded()) {
             if (mPhotoRecyclerView.getAdapter() != null) {
-                mAdapter.notifyItemRangeInserted(currentPage * itemsPerPage, itemsPerPage);
+                if (newList) {
+                    mAdapter.notifyDataSetChanged();
+                } else {
+                    mAdapter.notifyItemRangeInserted(currentPage * itemsPerPage, itemsPerPage);
+                }
             } else {
                 mPhotoRecyclerView.setAdapter(mAdapter);
+            }
+        }
+    }
+
+    // Show / hide keyboard.
+    private void switchKeyboard(boolean show) {
+        View view = getActivity().getCurrentFocus();
+        if (view != null) {
+            InputMethodManager imm = (InputMethodManager) getActivity().getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (show) {
+                imm.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT);
+                Log.d(TAG, "Keyboard has to be forced open");
+            } else {
+                imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
+                Log.d(TAG, "Keyboard has to be forced close");
             }
         }
     }
@@ -183,7 +281,7 @@ public class PhotoGalleryFragment extends Fragment {
         @Override
         public void onBindViewHolder(PhotoHolder holder, int position) {
             GalleryItem galleryItem = mGalleryItems.get(position);
-            Drawable placeHolder = ContextCompat.getDrawable(getActivity(), R.drawable.bill_up_close);
+            Drawable placeHolder = ContextCompat.getDrawable(getActivity(), R.drawable.image_placeholder);
             holder.bindDrawable(placeHolder);
             mThumbnailDownloader.queueThumbnail(holder, galleryItem.getUrl());
         }
@@ -194,7 +292,13 @@ public class PhotoGalleryFragment extends Fragment {
     }
 
     private class FetchItemsTask extends AsyncTask<Integer, Void, List<GalleryItem>> {
-        int[] photoListParameters;
+
+        private String mQuery;
+        int[] mPhotoListParameters;
+
+        public FetchItemsTask(String query) {
+            mQuery = query;
+        }
 
         @Override
         protected void onPreExecute() {
@@ -204,18 +308,28 @@ public class PhotoGalleryFragment extends Fragment {
         @Override
         protected List<GalleryItem> doInBackground(Integer... params) {
             FlickrFetchr flickFetchr = new FlickrFetchr();
-            List<GalleryItem> galleryItemsList = flickFetchr.fetchItems(params[0]);
-            photoListParameters =  flickFetchr.parsePhotoListParameters();
+            List<GalleryItem> galleryItemsList;
+            if (mQuery == null) {
+                galleryItemsList = flickFetchr.fetchRecentPhotos(params[0]);
+            } else {
+                galleryItemsList = flickFetchr.searchPhotos(mQuery, params[0]);
+            }
+//            List<GalleryItem> galleryItemsList = flickFetchr.downloadGalleryItems(params[0]);
+            mPhotoListParameters =  flickFetchr.parsePhotoListParameters();
             return galleryItemsList;
         }
         @Override
         protected void onPostExecute(List<GalleryItem> items) {
+            boolean newList = false;
+            if (mItems.isEmpty()) {
+                newList = true;
+            }
             mItems.addAll(items);
-            setupAdapter();
-            if (photoListParameters != null) {
-                totalPages = photoListParameters[0];
-                currentPage = photoListParameters[1];
-                itemsPerPage = photoListParameters[2];
+            setupAdapter(newList);
+            if (mPhotoListParameters != null) {
+                totalPages = mPhotoListParameters[0];
+                currentPage = mPhotoListParameters[1];
+                itemsPerPage = mPhotoListParameters[2];
             }
             isLoadingData = false;
         }

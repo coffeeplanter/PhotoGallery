@@ -17,7 +17,7 @@ public class ThumbnailDownloader<T> extends HandlerThread {
 
     private static final String TAG = "ThumbnailDownloader";
     private static final int MESSAGE_DOWNLOAD = 0;
-    private final int MAX_BITMAPS_IN_CACHE = 50;
+    private final int MAX_BITMAPS_IN_CACHE = 100;
 
     private boolean mHasQuit = false;
     private Handler mRequestHandler;
