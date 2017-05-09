@@ -156,7 +156,7 @@ public class PhotoGalleryFragment extends Fragment {
             @Override
             public boolean onQueryTextSubmit(String query) {
                 Log.d(TAG, "QueryTextSubmit: " + query);
-                QueryPreferences.setStoredQuery(getActivity(), query);
+                QueryPreferences.setStoredQuery(getActivity(), query.trim());
                 mItems.clear();
                 updateItems();
                 switchKeyboard(false);
@@ -258,10 +258,8 @@ public class PhotoGalleryFragment extends Fragment {
             InputMethodManager imm = (InputMethodManager) getActivity().getSystemService(Context.INPUT_METHOD_SERVICE);
             if (show) {
                 imm.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT);
-                Log.d(TAG, "Keyboard has to be forced open");
             } else {
                 imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
-                Log.d(TAG, "Keyboard has to be forced close");
             }
         }
     }
@@ -328,7 +326,6 @@ public class PhotoGalleryFragment extends Fragment {
             } else {
                 galleryItemsList = flickFetchr.searchPhotos(mQuery, params[0]);
             }
-//            List<GalleryItem> galleryItemsList = flickFetchr.downloadGalleryItems(params[0]);
             mPhotoListParameters =  flickFetchr.parsePhotoListParameters();
             return galleryItemsList;
         }
