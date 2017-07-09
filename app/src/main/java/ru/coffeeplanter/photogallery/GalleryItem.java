@@ -1,5 +1,7 @@
 package ru.coffeeplanter.photogallery;
 
+import android.net.Uri;
+
 import com.google.gson.annotations.SerializedName;
 
 public class GalleryItem {
@@ -10,6 +12,9 @@ public class GalleryItem {
     private String mId;
     @SerializedName("url_s")
     private String mUrl;
+    @SerializedName("owner")
+    private String mOwner;
+
 
     public GalleryItem() {
     }
@@ -23,6 +28,14 @@ public class GalleryItem {
     @Override
     public String toString() {
         return mCaption;
+    }
+
+    public Uri getPhotoPageUri() {
+        return Uri.parse("https://www.flickr.com/photos")
+                .buildUpon()
+                .appendPath(mOwner)
+                .appendPath(mId)
+                .build();
     }
 
     public String getCaption() {
@@ -47,6 +60,14 @@ public class GalleryItem {
 
     public void setUrl(String url) {
         mUrl = url;
+    }
+
+    public String getOwner() {
+        return mOwner;
+    }
+
+    public void setOwner(String owner) {
+        mOwner = owner;
     }
 
 }
